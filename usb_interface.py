@@ -20,7 +20,6 @@ def find_com_port(target_name=None):
             return port.device
     return None if target_name else [port.device for port in ports]
 
-
 def send_data(com_port, data, baudrate=921600, timeout=1):
     """
     param baudrate: 波特率，默认为 921600
@@ -41,7 +40,7 @@ def send_data(com_port, data, baudrate=921600, timeout=1):
         print(f"串口操作失败: {e}")
         return None
 
-def float_list_to_byte_array(float_list, num_floats):
+def float_to_byte_array(float_list, num_floats):
     # 初始化一个空字节数组，每个浮点数占用4字节（32位）
     byte_array = bytearray()
     
@@ -56,10 +55,18 @@ def float_list_to_byte_array(float_list, num_floats):
     
     return byte_array
 
+def bytes_to_float(byte_array):
+    float_value=[]
+    if len(byte_array)%4 != 0:
+        raise ValueError("输入的字节数组长度必须为4！")
+    for i in range (len(byte_array)//4):
+        float_value+=[struct.unpack('<f', byte_array[i*4:i*4+4])[0]]  # '<f' 表示小端序浮点数
+    return float_value
+
 def tx_data_format(float_list):
     tx_data=bytes([0xA5]) #指定帧头 1
     len_bytes=len(float_list) *4 #float32 单精度
-    print(len_bytes)
+    # print(len_bytes)
     # USB2.0 全速12M bit/s 过长的数据是不合理的！！
     if len_bytes>0x05dc or len_bytes<=0:
         return []
@@ -70,7 +77,7 @@ def tx_data_format(float_list):
     # 添加目前无用的命令码,或许后续有用（）
     tx_data+=bytes([11& 0xFF,11& 0xFF])
     # f32塞入发送列表
-    tx_data+=float_list_to_byte_array(float_list,len(float_list))
+    tx_data+=float_to_byte_array(float_list,len(float_list))
     # crc-16校验 2byte
     crc_result = crc16_check(tx_data)
     tx_data+=bytes([crc_result & 0xFF,(crc_result >> 8) & 0xFF])
@@ -78,11 +85,12 @@ def tx_data_format(float_list):
 
 if __name__ == "__main__":
     float_list = []
-    k=0.0
+    receive_list=[]
+    k=-100.0
     float_list.append(k)
     a=tx_data_format(float_list)
 
-    target_device = "USB-SERIAL"  # 替换为你的设备描述（如 "Arduino" 或 "CH340"）
+    target_device = "USB 串行设备"  # 替换为你的设备描述（如 "Arduino" 或 "CH340"）
     com_port = find_com_port(target_device)
     if not com_port:
         print("未找到目标COM口，列出所有可用端口。")
@@ -103,8 +111,13 @@ if __name__ == "__main__":
                     a=tx_data_format(float_list)
                     # 发送数据
                     ser.write(a)
-                    print(f"发送数据: {a.hex().upper()}")
-
+                    # print(f"发送数据: {a.hex().upper()}")
+                    # print(" ".join(f"{byte:02x}" for byte in data))
+                    receive_list=bytes_to_float(ser.read(size=16))
+                    print(receive_list)
+            # 检查是否接收到足够的数据
+                    # if len(data) < 16:
+                    #     print(f"警告: 仅接收到 {len(data)} 字节数据，可能未达到预期长度 {16}")
                     #精确1000hz发送
                     #有点草可以优化
                     while (time.perf_counter() - start_time) < interval / 1_000_000:

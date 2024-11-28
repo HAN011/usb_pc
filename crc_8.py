@@ -28,7 +28,6 @@ def crc8_check(input_str,num_bytes):
             crc = sht75_crc_table[(byte ^ crc)]
             cnt+=1
         # else:break
-    print(crc)
     return crc
 
 # print(hex(crc_8([0xA5,0x04,0x00],3)))
